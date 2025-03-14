@@ -156,13 +156,13 @@ def import_from_excel(file):
                     "name": str(row["name"]),
                     "quantity": quantity,
                     "stations": {
-                        "Wareneingang": False,
-                        "Labeln": False,
-                        "Sichtkontrolle": False,
-                        "Erase-Vorgang": False,
-                        "Eingabe in das Kundenportal": False,
-                        "Einlagerung": False,
-                        "Ausgang": False
+                        "Station 1": False,
+                        "Station 2": False,
+                        "Station 3": False,
+                        "Station 4": False,
+                        "Station 5": False,
+                        "Station 6": False,
+                        "Station 7": False
                     }
                 }
                 projects.append(project)
@@ -192,6 +192,20 @@ def import_from_excel(file):
         raise Exception(f"Fehler beim Importieren der Excel-Datei: {e}")
         return None
 
+# Initialize all session state variables at the beginning
+# Dialog state management
+if 'show_settings_dialog' not in st.session_state:
+    st.session_state.show_settings_dialog = False
+
+if 'show_employee_dialog' not in st.session_state:
+    st.session_state.show_employee_dialog = False
+
+if 'temp_project_settings' not in st.session_state:
+    st.session_state.temp_project_settings = False
+
+if 'show_results' not in st.session_state:
+    st.session_state.show_results = False
+
 # Initialize project list in session state if not exists
 if 'projects' not in st.session_state:
     # Make sure we generate new random projects if no data file exists
@@ -210,14 +224,32 @@ st.session_state.on_change = on_change
 if 'selected_project_index' not in st.session_state:
     st.session_state.selected_project_index = 0 if st.session_state.projects else None
 
+# Initialize employee data if not exists
+if 'employee_data' not in st.session_state:
+    st.session_state.employee_data = {
+        'employees': [
+            {'id': 1, 'stations': {}}
+        ]
+    }
+
 # Sidebar for project management
 with st.sidebar:
     # Project list display first
     if st.session_state.projects:
         st.subheader("Liste der Projekte")
-        
+        titel1, titel2, titel3, titel4 = st.columns([0.4, 0.2, 0.2, 0.2])
+        with titel1:
+            st.markdown("Name")
+        with titel2:
+            st.markdown("Anzahl")
+        with titel3:
+            st.markdown("Konfig.")
+        with titel4:
+            st.markdown("Löschen")
+
         for i, project in enumerate(st.session_state.projects):
-            col1, col2, col3, col4 = st.columns([5, 2, 1, 1])
+            # Präzises Layout mit definierten relativen Breiten
+            col1, col2, col3, col4 = st.columns([0.4, 0.2, 0.2, 0.2])
             
             with col1:
                 # Make project name clickable for selection
@@ -231,9 +263,10 @@ with st.sidebar:
                     st.rerun()
             
             with col2:
-                # Update quantity for each project
+                # Update quantity for each project - remove the label for the actual input
                 new_qty = st.number_input(
-                    "Anzahl", 
+                    label="Anzahl",
+                    label_visibility="collapsed",  # Hide the label completely
                     min_value=1, 
                     value=project["quantity"], 
                     step=1,
@@ -246,14 +279,14 @@ with st.sidebar:
             
             with col3:
                 # Settings button for each project
-                if st.button("⚙️", key=f"settings_{i}", help="Projekteinstellungen"):
+                if st.button("⚙️", key=f"settings_{i}", help="Projektkonfiguration", use_container_width=True):
                     st.session_state.selected_project_index = i
                     st.session_state.show_settings_dialog = True
                     st.rerun()
             
             with col4:
                 # Delete button for each project
-                if st.button("🗑️", key=f"delete_{i}", help="Projekt löschen"):
+                if st.button("🗑️", key=f"delete_{i}", help="Projekt löschen", use_container_width=True):
                     if i == st.session_state.selected_project_index:
                         # If deleting selected project, select first one or None
                         if len(st.session_state.projects) > 1:
@@ -268,19 +301,7 @@ with st.sidebar:
                     save_projects()
                     st.rerun()
         
-        # Add Calculate button under the project list
-        st.divider()
-        any_stations_selected = any(
-            sum(1 for value in p.get('stations', {}).values() if value) > 0 
-            for p in st.session_state.projects
-        )
-        
-        if any_stations_selected:
-            if st.button("🧮 Berechnen", use_container_width=True, key="calculate_button"):
-                st.session_state.show_results = True
-                st.rerun()
-        else:
-            st.warning("Bitte wählen Sie mindestens eine Station über den ⚙️ Einstellungen-Button bei einem Projekt aus.")
+        # Remove Calculate button from here - it will be moved below the "Projekt hinzufügen" section
     else:
         st.warning("Keine Projekte vorhanden.")
         st.session_state.selected_project_index = None
@@ -323,7 +344,7 @@ with st.sidebar:
     
     with col2:
         # Settings button for new project
-        if st.button("⚙️ Einstellungen", help="Stationen für neues Projekt konfigurieren", use_container_width=True):
+        if st.button("⚙️ Konfiguration", help="Stationen für neues Projekt konfigurieren", use_container_width=True):
             # Create a temporary project for configuration
             if 'temp_project' not in st.session_state:
                 st.session_state.temp_project = {
@@ -344,18 +365,13 @@ with st.sidebar:
     
     # Project settings are now shown in a dialog when the settings button is clicked
 
-if 'show_results' not in st.session_state:
-    st.session_state.show_results = False
-
-# Initialize dialog state if needed
-if 'show_settings_dialog' not in st.session_state:
-    st.session_state.show_settings_dialog = False
+# All session state variables are now initialized at the beginning of the file
 
 # Main content area
 st.title("Mitarbeitereinsatz")
 
 # Define dialog function for project settings
-@st.dialog("Projekteinstellungen")
+@st.dialog("Projektkonfiguration")
 def show_project_settings(project_index):
     if project_index is not None and project_index < len(st.session_state.projects):
         selected_project = st.session_state.projects[project_index]
@@ -372,87 +388,109 @@ def show_project_settings(project_index):
                 "Station 7": False
             }
         
-        # Dialog content
-        st.subheader(f"Stationen für {selected_project['name']}")
+        # Project name input field
+        new_name = st.text_input(
+            "Projektname:",
+            value=selected_project['name'],
+            key=f"rename_project_{project_index}"
+        )
         
-        # Create two columns for station checkboxes
-        col1, col2 = st.columns(2)
+        # Update project name if changed
+        if new_name != selected_project['name']:
+            selected_project['name'] = new_name
+            save_projects()
         
-        # Split stations into two groups
+        # Dialog content for stations
+        st.subheader("Stationen")
+        
+        # Create three columns for better station checkbox layout
+        col1, col2, col3 = st.columns(3)
+        
+        # Split stations into three groups
         stations = list(selected_project['stations'].keys())
-        half = len(stations) // 2 + len(stations) % 2
+        group_size = len(stations) // 3
+        remainder = len(stations) % 3
         
-        # First column
-        with col1:
-            for station in stations[:half]:
-                value = st.checkbox(
-                    station, 
-                    value=selected_project['stations'][station],
-                    key=f"dialog_{station}_{project_index}"
-                )
-                if value != selected_project['stations'][station]:
-                    selected_project['stations'][station] = value
-                    save_projects()
+        # Calculate the number of stations for each column
+        counts = [group_size + (1 if i < remainder else 0) for i in range(3)]
         
-        # Second column
+        # Distribute stations across columns
+        start_idx = 0
+        columns = [col1, col2, col3]
+        
+        for i, col in enumerate(columns):
+            end_idx = start_idx + counts[i]
+            with col:
+                for station in stations[start_idx:end_idx]:
+                    value = st.checkbox(
+                        station, 
+                        value=selected_project['stations'][station],
+                        key=f"dialog_{station}_{project_index}"
+                    )
+                    if value != selected_project['stations'][station]:
+                        selected_project['stations'][station] = value
+                        save_projects()
+            start_idx = end_idx
+        
+        # Close button - centered
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
-            for station in stations[half:]:
-                value = st.checkbox(
-                    station, 
-                    value=selected_project['stations'][station],
-                    key=f"dialog_{station}_{project_index}"
-                )
-                if value != selected_project['stations'][station]:
-                    selected_project['stations'][station] = value
-                    save_projects()
-        
-        # Close button
-        if st.button("Schließen", key="close_settings"):
-            st.session_state.show_settings_dialog = False
-            st.rerun()
+            if st.button("Schließen", key="close_settings", use_container_width=True):
+                st.session_state.show_settings_dialog = False
+                st.rerun()
 
 # Dialog for temporary project settings
-@st.dialog("Einstellungen für neues Projekt")
+@st.dialog("Konfiguration für neues Projekt")
 def show_temp_project_settings():
     if 'temp_project' in st.session_state:
-        # Dialog content
-        st.subheader(f"Stationen für neues Projekt")
+        # Project name input field for new project
+        new_name = st.text_input(
+            "Projektname:",
+            value=st.session_state.temp_project['name'],
+            key="temp_project_name"
+        )
         
-        # Create two columns for station checkboxes
-        col1, col2 = st.columns(2)
+        # Update project name if changed
+        if new_name != st.session_state.temp_project['name']:
+            st.session_state.temp_project['name'] = new_name
         
-        # Split stations into two groups
+        # Dialog content for stations
+        st.subheader("Stationen")
+        
+        # Create three columns for better station checkbox layout
+        col1, col2, col3 = st.columns(3)
+        
+        # Split stations into three groups
         stations = list(st.session_state.temp_project['stations'].keys())
-        half = len(stations) // 2 + len(stations) % 2
+        group_size = len(stations) // 3
+        remainder = len(stations) % 3
         
-        # First column
-        with col1:
-            for station in stations[:half]:
-                value = st.checkbox(
-                    station, 
-                    value=st.session_state.temp_project['stations'][station],
-                    key=f"temp_dialog_{station}"
-                )
-                if value != st.session_state.temp_project['stations'][station]:
-                    st.session_state.temp_project['stations'][station] = value
+        # Calculate the number of stations for each column
+        counts = [group_size + (1 if i < remainder else 0) for i in range(3)]
         
-        # Second column
-        with col2:
-            for station in stations[half:]:
-                value = st.checkbox(
-                    station, 
-                    value=st.session_state.temp_project['stations'][station],
-                    key=f"temp_dialog_{station}"
-                )
-                if value != st.session_state.temp_project['stations'][station]:
-                    st.session_state.temp_project['stations'][station] = value
+        # Distribute stations across columns
+        start_idx = 0
+        columns = [col1, col2, col3]
         
-        # Buttons
-        col1, col2 = st.columns(2)
+        for i, col in enumerate(columns):
+            end_idx = start_idx + counts[i]
+            with col:
+                for station in stations[start_idx:end_idx]:
+                    value = st.checkbox(
+                        station, 
+                        value=st.session_state.temp_project['stations'][station],
+                        key=f"temp_dialog_{station}"
+                    )
+                    if value != st.session_state.temp_project['stations'][station]:
+                        st.session_state.temp_project['stations'][station] = value
+            start_idx = end_idx
+        
+        # Buttons - more nicely aligned
+        col1, col2, col3 = st.columns([1, 1, 1])
         
         with col1:
             # Apply and save button
-            if st.button("Speichern", key="save_temp_project"):
+            if st.button("Speichern", key="save_temp_project", use_container_width=True):
                 # Create new project with selected stations
                 if 'name' in st.session_state.temp_project and st.session_state.temp_project['name']:
                     st.session_state.projects.append(st.session_state.temp_project)
@@ -464,23 +502,162 @@ def show_temp_project_settings():
                 else:
                     st.error("Bitte geben Sie einen Projektnamen ein.")
         
-        with col2:
+        with col3:
             # Close button
-            if st.button("Abbrechen", key="close_temp_settings"):
+            if st.button("Abbrechen", key="close_temp_settings", use_container_width=True):
                 st.session_state.temp_project_settings = False
                 del st.session_state.temp_project
                 st.rerun()
 
-# Show dialogs if needed
-if st.session_state.selected_project_index is not None and st.session_state.show_settings_dialog:
-    show_project_settings(st.session_state.selected_project_index)
+# Define dialog for employee configuration
+@st.dialog("Mitarbeiterzeiten konfigurieren")
+def show_employee_config():
+    if 'employee_data' in st.session_state:
+        # Dialog content
+        st.subheader("Mitarbeiterzeiten konfigurieren")
+        
+        # Use numerically named stations instead of actual station names
+        station_list = [f"Station {i}" for i in range(1, 8)]
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            # Dropdown to select employee
+            employee_ids = [emp['id'] for emp in st.session_state.employee_data['employees']]
+            selected_employee_id = st.selectbox(
+                "Mitarbeiter auswählen:",
+                options=employee_ids,
+                format_func=lambda x: f"Mitarbeiter {x}"
+            )
+            
+        with col2:
+            # Add new employee button next to the dropdown
+            if st.button("➕ Neu", help="Neuen Mitarbeiter hinzufügen", use_container_width=True):
+                # Find the next available ID
+                next_id = max(employee_ids) + 1 if employee_ids else 1
+                # Add new employee
+                st.session_state.employee_data['employees'].append({
+                    'id': next_id,
+                    'stations': {}
+                })
+                st.rerun()
+        
+        st.divider()
+        
+        # Find selected employee data
+        selected_employee = next((emp for emp in st.session_state.employee_data['employees'] if emp['id'] == selected_employee_id), None)
+        
+        if selected_employee:
+            # Update employee's station configurations
+            st.subheader("Bearbeitungszeiten für Stationen")
+            
+            # Create a better layout for stations with two columns
+            col1, col2 = st.columns(2)
+            
+            # Split the stations into two groups
+            left_stations = station_list[:len(station_list)//2 + len(station_list)%2]
+            right_stations = station_list[len(station_list)//2 + len(station_list)%2:]
+            
+            # Left column
+            with col1:
+                for station in left_stations:
+                    # Initialize station data if not exists
+                    if 'stations' not in selected_employee:
+                        selected_employee['stations'] = {}
+                    
+                    if station not in selected_employee['stations']:
+                        selected_employee['stations'][station] = {
+                            'processing_time_minutes': 15
+                        }
+                    
+                    st.markdown(f"**{station}**")
+                    # Processing time input in minutes
+                    minutes = st.number_input(
+                        "Bearbeitungszeit (Minuten)",
+                        min_value=1,
+                        max_value=480,
+                        value=selected_employee['stations'][station]['processing_time_minutes'],
+                        key=f"minutes_{station}_{selected_employee_id}"
+                    )
+                    selected_employee['stations'][station]['processing_time_minutes'] = minutes
+                    st.divider()
+            
+            # Right column
+            with col2:
+                for station in right_stations:
+                    # Initialize station data if not exists
+                    if station not in selected_employee['stations']:
+                        selected_employee['stations'][station] = {
+                            'processing_time_minutes': 15
+                        }
+                    
+                    st.markdown(f"**{station}**")
+                    # Processing time input in minutes
+                    minutes = st.number_input(
+                        "Bearbeitungszeit (Minuten)",
+                        min_value=1,
+                        max_value=480,
+                        value=selected_employee['stations'][station]['processing_time_minutes'],
+                        key=f"minutes_{station}_{selected_employee_id}"
+                    )
+                    selected_employee['stations'][station]['processing_time_minutes'] = minutes
+                    st.divider()
+        
+        # Close button - centered
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            if st.button("Schließen", key="close_employee_config", use_container_width=True):
+                st.session_state.show_employee_dialog = False
+                st.rerun()
 
-if 'temp_project_settings' in st.session_state and st.session_state.temp_project_settings:
+# Define a function to check if any dialog is currently open
+def is_any_dialog_open():
+    dialog_states = [
+        st.session_state.show_employee_dialog,
+        st.session_state.show_settings_dialog if 'show_settings_dialog' in st.session_state else False,
+        st.session_state.temp_project_settings if 'temp_project_settings' in st.session_state else False
+    ]
+    return any(dialog_states)
+
+# Show dialogs if needed - IMPORTANT: Only one dialog can be shown at a time
+if st.session_state.show_employee_dialog:
+    show_employee_config()
+elif st.session_state.selected_project_index is not None and st.session_state.show_settings_dialog:
+    show_project_settings(st.session_state.selected_project_index)
+elif 'temp_project_settings' in st.session_state and st.session_state.temp_project_settings:
     show_temp_project_settings()
 
-# Add Excel Import/Export at the end of the sidebar
+# Add Calculate button below "Projekt hinzufügen" section
 with st.sidebar:
-    # Add a divider to separate from project management
+    # Add a divider after the "Projekt hinzufügen" section
+    st.divider()
+    
+    # Add "Mitarbeiterzeiten konfigurieren" button
+    if st.button("⚙️ Mitarbeiterzeiten konfigurieren", use_container_width=True, key="employee_config_button"):
+        st.session_state.show_employee_dialog = True
+        st.rerun()
+    
+    # Add Calculate button (moved from above)
+    any_stations_selected = any(
+        sum(1 for value in p.get('stations', {}).values() if value) > 0 
+        for p in st.session_state.projects
+    )
+    
+    if any_stations_selected:
+        if st.button("💡 Berechnen", use_container_width=True, key="calculate_button"):
+            # Make sure we don't accidentally open any dialogs when calculating
+            st.session_state.show_employee_dialog = False
+            st.session_state.show_settings_dialog = False
+            if 'temp_project_settings' in st.session_state:
+                st.session_state.temp_project_settings = False
+            
+            # Set show_results to display calculation results
+            st.session_state.show_results = True
+            st.rerun()
+    else:
+        st.warning("Bitte wählen Sie mindestens eine Station über den ⚙️ Konfiguration-Button bei einem Projekt aus.")
+    
+    # Add a divider before the Excel Import/Export section
     st.divider()
     
     # Excel import/export section
@@ -575,17 +752,57 @@ if st.session_state.show_results:
     if not all_stations:
         st.warning("Keine Stationen ausgewählt. Wählen Sie im Seitenmenü für mindestens ein Projekt Stationen aus.")
     else:
-        # Create results for each station
+        # Create results for each station based on employee data
         station_results = []
         
-        for station in all_stations:
-            # Generate random number of employees (1-3)
-            mitarbeiter = random.randint(1, 3)
+        # Get employee assignments from employee_data
+        if 'employee_data' in st.session_state and 'employees' in st.session_state.employee_data:
+            employees = st.session_state.employee_data['employees']
             
-            station_results.append({
-                "Station": station,
-                "Anzahl Mitarbeiter": mitarbeiter
-            })
+            # For each active station, find assigned employees with processing times
+            for station in sorted(all_stations):
+                # Find employees assigned to this station
+                assigned_employees = []
+                for emp in employees:
+                    if 'stations' in emp and station in emp['stations']:
+                        assigned_employees.append({
+                            'id': emp['id'],
+                            'processing_time': emp['stations'][station].get('processing_time_minutes', 15)
+                        })
+                
+                # If no employees are assigned yet, generate a random assignment
+                if not assigned_employees:
+                    # Generate random number of employees (1-3)
+                    num_mitarbeiter = random.randint(1, 3)
+                    assigned_employee_ids = [f"Mitarbeiter {random.randint(1, 5)}" for _ in range(num_mitarbeiter)]
+                    
+                    station_results.append({
+                        "Station": station,
+                        "Mitarbeiter": ", ".join(assigned_employee_ids),
+                        "Bearbeitungszeit (Min)": random.randint(5, 30)
+                    })
+                else:
+                    # Use actual employee assignments
+                    employee_ids = [f"Mitarbeiter {emp['id']}" for emp in assigned_employees]
+                    avg_processing_time = sum(emp['processing_time'] for emp in assigned_employees) / len(assigned_employees)
+                    
+                    station_results.append({
+                        "Station": station,
+                        "Mitarbeiter": ", ".join(employee_ids),
+                        "Bearbeitungszeit (Min)": round(avg_processing_time, 1)
+                    })
+        else:
+            # Fallback if no employee data is available
+            for station in sorted(all_stations):
+                # Generate random number of employees (1-3)
+                num_mitarbeiter = random.randint(1, 3)
+                assigned_employee_ids = [f"Mitarbeiter {random.randint(1, 5)}" for _ in range(num_mitarbeiter)]
+                
+                station_results.append({
+                    "Station": station,
+                    "Mitarbeiter": ", ".join(assigned_employee_ids),
+                    "Bearbeitungszeit (Min)": random.randint(5, 30)
+                })
         
         # Create DataFrame and display table
         results_df = pd.DataFrame(station_results)
@@ -593,10 +810,39 @@ if st.session_state.show_results:
         
         # Summary statistics
         st.subheader("Zusammenfassung")
-        total_mitarbeiter = results_df["Anzahl Mitarbeiter"].sum()
+        
+        # Count unique employees and collect employee IDs
+        all_employees = set()
+        employee_ids = set()
+        for result in station_results:
+            emp_list = result["Mitarbeiter"].split(", ")
+            for emp in emp_list:
+                all_employees.add(emp)
+                # Extract employee ID number
+                if emp.startswith("Mitarbeiter "):
+                    try:
+                        emp_id = int(emp.replace("Mitarbeiter ", ""))
+                        employee_ids.add(emp_id)
+                    except ValueError:
+                        pass
+        
+        # Update employee_data to include all employees from calculation results
+        if 'employee_data' in st.session_state:
+            existing_ids = {emp['id'] for emp in st.session_state.employee_data['employees']}
+            for emp_id in employee_ids:
+                if emp_id not in existing_ids:
+                    # Add missing employees to the employee_data
+                    st.session_state.employee_data['employees'].append({
+                        'id': emp_id,
+                        'stations': {}
+                    })
+        
+        total_mitarbeiter = len(all_employees)
         total_stations = len(station_results)
         
-        st.write(f"Anzahl Stationen: **{total_stations}**")
-        st.write(f"Benötigte Mitarbeiter insgesamt: **{total_mitarbeiter}**")
+        # Calculate average processing time
+        avg_time = sum(result["Bearbeitungszeit (Min)"] for result in station_results) / len(station_results) if station_results else 0
         
-        # No reset button needed anymore
+        st.write(f"Anzahl Stationen: **{total_stations}**")
+        st.write(f"Beteiligte Mitarbeiter insgesamt: **{total_mitarbeiter}**")
+        st.write(f"Durchschnittliche Bearbeitungszeit: **{round(avg_time, 1)} Min**")
